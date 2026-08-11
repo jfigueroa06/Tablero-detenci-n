@@ -195,6 +195,15 @@ main{flex:1;min-width:0;min-height:0;padding:0 0 60px;overflow-y:auto}
   border-radius:3px;color:var(--muted);background:var(--bg);font-weight:700}
 .accbtn:hover{border-color:var(--brand);color:var(--text)}
 
+/* botón para crear un área, al final del listado */
+.area-add{color:var(--brand);font-weight:600;font-size:12.5px;text-align:center;
+  background:var(--bg);border-bottom:1px solid var(--line)}
+.area-add:hover{background:var(--brand-pale)}
+.area.fuera .an{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--line2)}
+.pk.fuera>.pk-h{background:repeating-linear-gradient(45deg,transparent 0 6px,rgba(0,0,0,.02) 6px 12px)}
+.pk.fuera .pk-n{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--line2)}
+.ahead h2 .tag{vertical-align:middle}
+
 /* botón/campo unificado de estado — insignia estática o número editable */
 .badge{flex:0 0 auto;font-size:10.5px;font-weight:600;letter-spacing:.03em;
   padding:4px 0;width:78px;text-align:center;border-radius:3px;border:1px solid transparent}
@@ -495,7 +504,7 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
   </div>
   <div class="kpis">
     <div class="kpi" title="Ponderado por duración: una tarea de 48 horas pesa más que una de 15 minutos, igual que en MS Project"><div class="k disp">Avance global</div><div class="v mono" id="k1">0<small>%</small></div></div>
-    <div class="kpi ok"><div class="k disp">Subtareas listas</div><div class="v mono" id="k2">0</div></div>
+    <div class="kpi ok"><div class="k disp">Subtareas completadas</div><div class="v mono" id="k2">0</div></div>
     <div class="kpi late"><div class="k disp">Atrasadas</div><div class="v mono" id="k3">0</div></div>
     <div class="kpi"><div class="k disp">Restan</div><div class="v mono" id="k4">0<small>h</small></div></div>
   </div>
@@ -512,7 +521,7 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
         <button data-s="todas" class="on">Todas</button>
         <button data-s="pendiente">Pendientes</button>
         <button data-s="atrasada">Atrasadas</button>
-        <button data-s="lista">Listas</button>
+        <button data-s="lista">Completadas</button>
       </div>
       <div class="tools-admin" id="toolsadmin">
         <select id="fresp" aria-label="Filtrar por responsable"><option value="">Todo responsable</option></select>
@@ -520,6 +529,7 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
         <button class="mini" id="openimport">Cargar plan</button>
         <button class="mini" id="opencurve">Curva S</button>
         <button class="mini" id="openinforme">Informe de turno</button>
+        <button class="mini" id="respaldar">⬇ Descargar respaldo</button>
       </div>
     </div>
     <div id="ahead"></div>
@@ -809,21 +819,23 @@ end $$;</pre>
         padding:9px 10px;font-size:14px;color:var(--text)">
     </div>
 
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-      <div style="flex:1 1 190px">
-        <label class="lbl" style="display:block;margin-bottom:4px">Inicio</label>
-        <input type="datetime-local" id="tarea-inicio"
-          style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;
-          padding:9px 10px;font-size:14px;color:var(--text)">
+    <div id="tarea-fechas">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <div style="flex:1 1 190px">
+          <label class="lbl" style="display:block;margin-bottom:4px">Inicio</label>
+          <input type="datetime-local" id="tarea-inicio"
+            style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;
+            padding:9px 10px;font-size:14px;color:var(--text)">
+        </div>
+        <div style="flex:1 1 190px">
+          <label class="lbl" style="display:block;margin-bottom:4px">Término</label>
+          <input type="datetime-local" id="tarea-fin"
+            style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;
+            padding:9px 10px;font-size:14px;color:var(--text)">
+        </div>
       </div>
-      <div style="flex:1 1 190px">
-        <label class="lbl" style="display:block;margin-bottom:4px">Término</label>
-        <input type="datetime-local" id="tarea-fin"
-          style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;
-          padding:9px 10px;font-size:14px;color:var(--text)">
-      </div>
+      <div id="tarea-duracion" class="mono" style="font-size:11.5px;color:var(--muted);margin-bottom:14px"></div>
     </div>
-    <div id="tarea-duracion" class="mono" style="font-size:11.5px;color:var(--muted);margin-bottom:14px"></div>
 
     <div id="tarea-original"></div>
     <div id="tarea-error" class="err"></div>
@@ -918,7 +930,7 @@ function corto(nombre){
   return p.length < 2 ? (p[0] || '') : `${p[0]} ${p[1][0].toUpperCase()}.`;
 }
 
-const LABEL = {pendiente:'PENDIENTE', curso:'EN CURSO', lista:'LISTA', atrasada:'ATRASADA'};
+const LABEL = {pendiente:'PENDIENTE', curso:'EN CURSO', lista:'COMPLETADA', atrasada:'ATRASADA'};
 
 function statusOf(s){
   const m = MARKS[s.k];
@@ -1149,37 +1161,111 @@ function reconstruir(){
   // copia profunda del original: los cambios nunca lo modifican
   const plan = JSON.parse(JSON.stringify(PLAN_BASE));
 
-  plan.areas.forEach(a => a.paquetes.forEach(p => {
-    // 1) aplicar cambios sobre las subtareas que ya venían en el archivo
-    p.subs.forEach(s => {
-      const e = EDITS[s.k];
-      s._origS = s.s; s._origF = s.f;
-      if (!e) return;
-      if (e.s) s.s = e.s;
-      if (e.f) s.f = e.f;
-      s._eliminada = !!e.eliminada;
-      s._quienEdito = e.who;
-      s._reprogramada = (e.s && e.s !== s._origS) || (e.f && e.f !== s._origF);
-    });
+  // El tipo de elemento se distingue por el prefijo de su clave, así no hace
+  // falta una columna extra en la base de datos:
+  //   area:<id>  → área nueva
+  //   tarea:<id> → tarea nueva (dentro de un área)
+  //   sub:<id>   → subtarea nueva (dentro de una tarea)
+  // Las claves sin prefijo son elementos que vinieron en el archivo original.
 
-    // 2) insertar las tareas que el equipo agregó a este paquete
-    Object.entries(EDITS).forEach(([k, e]) => {
-      if (!e.nueva || e.pk !== p.o) return;
-      p.subs.push({
-        k, o: `${p.o}+`, n: e.nombre || 'Tarea nueva',
-        s: e.s || p.s, f: e.f || p.f, p: 0, d: 1,
-        pos: 999, resp: null,
-        _nueva: true, _eliminada: !!e.eliminada, _quienEdito: e.who
+  // ── 1) áreas nuevas ──────────────────────────────────────────────
+  Object.entries(EDITS).forEach(([k, e]) => {
+    if (!e.nueva || !k.startsWith('area:')) return;
+    plan.areas.push({
+      o: k, n: e.nombre || 'Área nueva',
+      s: e.s || plan.inicio, f: e.f || plan.fin,
+      paquetes: [], _nueva: true, _eliminada: !!e.eliminada, _quienEdito: e.who
+    });
+  });
+
+  // ── 2) tareas nuevas dentro de su área ───────────────────────────
+  Object.entries(EDITS).forEach(([k, e]) => {
+    if (!e.nueva || !k.startsWith('tarea:')) return;
+    const area = plan.areas.find(a => a.o === e.pk);
+    if (!area) return;   // el área ya no existe: la tarea queda huérfana y se omite
+    area.paquetes.push({
+      o: k, n: e.nombre || 'Tarea nueva',
+      s: e.s || area.s, f: e.f || area.f, resp: null, subs: [],
+      _nueva: true, _eliminada: !!e.eliminada, _quienEdito: e.who
+    });
+  });
+
+  // ── 3) cambios sobre lo existente y subtareas nuevas ─────────────
+  plan.areas.forEach(a => {
+    const ea = EDITS[a.o];
+    a._origS = a.s; a._origF = a.f;
+    if (ea){
+      if (ea.nombre && a._nueva) a.n = ea.nombre;
+      if (ea.s) a.s = ea.s;
+      if (ea.f) a.f = ea.f;
+      a._eliminada = a._eliminada || !!ea.eliminada;
+      a._reprogramada = (ea.s && ea.s !== a._origS) || (ea.f && ea.f !== a._origF);
+    }
+    a.paquetes.forEach(p => {
+      const ep = EDITS[p.o];
+      p._origS = p.s; p._origF = p.f;
+      if (ep){
+        if (ep.nombre && p._nueva) p.n = ep.nombre;
+        if (ep.s) p.s = ep.s;
+        if (ep.f) p.f = ep.f;
+        p._eliminada = p._eliminada || !!ep.eliminada;
+        p._reprogramada = (ep.s && ep.s !== p._origS) || (ep.f && ep.f !== p._origF);
+      }
+      // un área eliminada arrastra sus tareas
+      if (a._eliminada) p._eliminada = true;
+
+      p.subs.forEach(s => {
+        const e = EDITS[s.k];
+        s._origS = s.s; s._origF = s.f;
+        if (e){
+          if (e.s) s.s = e.s;
+          if (e.f) s.f = e.f;
+          s._eliminada = !!e.eliminada;
+          s._quienEdito = e.who;
+          s._reprogramada = (e.s && e.s !== s._origS) || (e.f && e.f !== s._origF);
+        }
+        // una tarea o un área eliminada arrastran sus subtareas
+        if (p._eliminada) s._eliminada = true;
+      });
+
+      // subtareas nuevas dentro de esta tarea
+      Object.entries(EDITS).forEach(([k, e]) => {
+        if (!e.nueva || !k.startsWith('sub:') || e.pk !== p.o) return;
+        p.subs.push({
+          k, o: `${p.o}·`, n: e.nombre || 'Subtarea nueva',
+          s: e.s || p.s, f: e.f || p.f, p: 0, d: 1,
+          pos: 999, resp: null,
+          _nueva: true, _eliminada: !!e.eliminada || !!p._eliminada, _quienEdito: e.who
+        });
       });
     });
-  }));
+  });
 
   PLAN = plan;
+
+  // Las fechas de un área se derivan de sus tareas, no se guardan aparte: así
+  // un área nueva no aparece abarcando toda la detención, y si una tarea se
+  // reprograma más allá del límite, el área lo refleja.
+  // Se formatea como hora de pared (no toISOString, que convertiría a UTC y
+  // desplazaría la hora respecto al resto del tablero).
+  const aPared = d => {
+    const z = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T` +
+           `${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+  };
+  plan.areas.forEach(a => {
+    const vivas = a.paquetes.filter(p => !p._eliminada);
+    const inicios = vivas.map(p => D(p.s)).filter(Boolean);
+    const fines   = vivas.map(p => D(p.f)).filter(Boolean);
+    if (inicios.length) a.s = aPared(new Date(Math.min(...inicios)));
+    if (fines.length)   a.f = aPared(new Date(Math.max(...fines)));
+  });
+
   idx = {};
   plan.areas.forEach(a => a.paquetes.forEach(p => p.subs.forEach(s => {
     s._pk = p.o; s._area = a.o; idx[s.k] = s;
   })));
-  if (!sel || !plan.areas.some(a => a.o === sel)) sel = plan.areas[0].o;
+  if (!sel || !plan.areas.some(a => a.o === sel)) sel = plan.areas[0]?.o || null;
   $('fresp').innerHTML = '<option value="">Todo responsable</option>' +
     (plan.responsables || []).map(r => `<option>${esc(r)}</option>`).join('');
 }
@@ -1425,32 +1511,51 @@ async function aplicarCambio(key, cambio, texto){
   }
 }
 
-async function crearTarea(pkWbs, nombre, inicio, fin){
-  const key = 'new:' + nuevoId();
+async function crearArea(nombre){
+  const key = 'area:' + nuevoId();
+  // se selecciona ANTES de aplicar el cambio: aplicarCambio() ya dispara el
+  // repintado, así que asignarlo después dejaría el área creada pero no visible.
+  sel = key;
+  await aplicarCambio(key, { nueva:true, eliminada:false, nombre, pk:null },
+    `creó el área «${nombre.slice(0,40)}»`);
+}
+
+async function crearTareaEnArea(areaWbs, nombre, inicio, fin){
+  const key = 'tarea:' + nuevoId();
   await aplicarCambio(key,
-    { nueva:true, eliminada:false, nombre, pk:pkWbs, s:inicio, f:fin },
-    `agregó la tarea «${nombre.slice(0,40)}» al paquete ${pkWbs}`);
+    { nueva:true, eliminada:false, nombre, pk:areaWbs, s:inicio, f:fin },
+    `agregó la tarea «${nombre.slice(0,40)}»`);
 }
 
-async function eliminarTarea(key){
-  const s = idx[key];
-  if (!s) return;
+async function crearSubtarea(tareaWbs, nombre, inicio, fin){
+  const key = 'sub:' + nuevoId();
+  await aplicarCambio(key,
+    { nueva:true, eliminada:false, nombre, pk:tareaWbs, s:inicio, f:fin },
+    `agregó la subtarea «${nombre.slice(0,40)}»`);
+}
+
+/* Busca un elemento por su clave en cualquiera de los tres niveles. */
+function buscarElemento(key){
+  if (idx[key]) return { tipo:'subtarea', el: idx[key] };
+  for (const a of PLAN.areas){
+    if (a.o === key) return { tipo:'área', el: a };
+    for (const p of a.paquetes) if (p.o === key) return { tipo:'tarea', el: p };
+  }
+  return null;
+}
+
+async function eliminarElemento(key){
+  const r = buscarElemento(key);
+  if (!r) return;
   await aplicarCambio(key, { eliminada:true },
-    `eliminó del plan «${s.n.slice(0,40)}»`);
+    `quitó del plan ${r.tipo === 'subtarea' ? 'la subtarea' : r.tipo === 'tarea' ? 'la tarea' : 'el área'} «${r.el.n.slice(0,40)}»`);
 }
 
-async function restaurarTarea(key){
-  const s = idx[key];
-  if (!s) return;
+async function restaurarElemento(key){
+  const r = buscarElemento(key);
+  if (!r) return;
   await aplicarCambio(key, { eliminada:false },
-    `restauró al plan «${s.n.slice(0,40)}»`);
-}
-
-async function reprogramar(key, inicio, fin){
-  const s = idx[key];
-  if (!s) return;
-  await aplicarCambio(key, { s:inicio, f:fin },
-    `reprogramó «${s.n.slice(0,40)}» a ${fmt(D(inicio))} → ${fmt(D(fin))}`);
+    `devolvió al plan «${r.el.n.slice(0,40)}»`);
 }
 
 async function setDueno(pkWbs, nombreCrudo){
@@ -1466,8 +1571,8 @@ async function setDueno(pkWbs, nombreCrudo){
       headers: { Prefer: 'resolution=merge-duplicates' },
       body: JSON.stringify([{ pk: pkWbs, plan_id: PLAN_ID || 'heredado', name: nombre, who: ME, at: new Date().toISOString() }])
     });
-    const txt = nombre ? `asignó «${nombre}» como dueño del paquete ${pkWbs}`
-      : `quitó el dueño del paquete ${pkWbs}`;
+    const txt = nombre ? `asignó «${nombre}» como dueño de la tarea ${pkWbs}`
+      : `quitó el dueño de la tarea ${pkWbs}`;
     pushLog(txt); local(txt);
   } catch (e){
     antes ? OWNERS[pkWbs] = antes : delete OWNERS[pkWbs];
@@ -1517,7 +1622,12 @@ function ventana(){
 
   $('vrows').innerHTML = PLAN.areas.map(a => {
     const s = D(a.s), f = D(a.f);
-    const l = Math.max(0,(s-VS)/span*100), w = Math.max(.6,(f-s)/span*100), p = pct(areaSubs(a));
+    const p = pct(areaSubs(a));
+    // un área recién creada aún no tiene tareas, así que no tiene fechas de
+    // las cuales derivar su barra: se dibuja una marca mínima al inicio.
+    if (!s || !f) return `<div class="v-row"><div class="v-seg ${a.o===sel?'sel':''}"
+      data-a="${esc(a.o)}" style="left:0;width:.6%" title="${esc(a.n)} · sin tareas aún"></div></div>`;
+    const l = Math.max(0,(s-VS)/span*100), w = Math.max(.6,(f-s)/span*100);
     return `<div class="v-row"><div class="v-seg ${p===100?'done':p>0?'part':''} ${a.o===sel?'sel':''}"
       data-a="${esc(a.o)}" style="left:${l}%;width:${w}%;--pc:${p}%"
       title="${esc(a.n)} · ${p}%"></div></div>`;
@@ -1542,20 +1652,27 @@ function rail(){
     PLAN.areas.map(a => {
       const subs = areaSubs(a), p = pct(subs);
       const atr = subs.filter(s => shown(s) === 'atrasada').length;
-      return `<button class="area ${a.o===sel?'on':''}" data-a="${esc(a.o)}">
-        <div class="an">${esc(a.n)}</div>
+      return `<button class="area ${a.o===sel?'on':''} ${a._eliminada?'fuera':''}" data-a="${esc(a.o)}">
+        <div class="an">${esc(a.n)}
+          ${a._nueva ? '<span class="tag nueva">NUEVA</span>' : ''}
+          ${a._eliminada ? '<span class="tag elim">FUERA</span>' : ''}</div>
         <div class="am"><span class="mono">${p}% · ${subs.length} subt.</span>
           ${atr ? `<span class="flag mono">${atr} atr.</span>` : ''}</div>
         <div class="bar ${p?'':'z'}"><i style="width:${p}%"></i></div></button>`;
-    }).join('');
-  $('rail').querySelectorAll('.area').forEach(e => e.onclick = () => {
+    }).join('') +
+    `<button class="area area-add" id="addarea">+ Crear área</button>`;
+  $('rail').querySelectorAll('.area[data-a]').forEach(e => e.onclick = () => {
     sel = e.dataset.a; render();
     if (innerWidth <= 860) $('ahead').scrollIntoView({behavior:'smooth',block:'start'});
   });
+  $('addarea').onclick = () => abrirTarea({ crear:'area' });
 }
 
 function match(s){
-  if (q && !(s.n.toLowerCase().includes(q) || s.o.includes(q))) return false;
+  // el código WBS solo se busca en elementos del archivo original: los creados
+  // en terreno tienen una clave interna que produciría coincidencias falsas.
+  const codigoBuscable = s._nueva ? '' : s.o;
+  if (q && !(s.n.toLowerCase().includes(q) || codigoBuscable.includes(q))) return false;
   if (fresp && (s.resp || '') !== fresp) return false;
   // las eliminadas siguen visibles como registro, pero solo bajo «Todas»:
   // no tiene sentido que aparezcan al filtrar por pendientes o atrasadas.
@@ -1569,20 +1686,30 @@ function render(){
   if (!PLAN) return;
   ventana(); kpis(); rail();
   const a = PLAN.areas.find(x => x.o === sel);
+  if (!a){
+    $('ahead').innerHTML = '';
+    $('list').innerHTML = `<div class="empty"><b>Sin áreas</b>
+      Crea la primera área con el botón «+ Crear área» del panel izquierdo.</div>`;
+    return;
+  }
   const subs = areaSubs(a), p = pct(subs);
 
   $('ahead').innerHTML = `<div class="ahead">
-    <h2>${esc(a.n)}</h2>
-    <div class="meta mono">WBS ${esc(a.o)} · ${a.paquetes.length} paquetes · ${subs.length} subtareas ·
+    <h2>${esc(a.n)}
+      ${a._nueva ? '<span class="tag nueva">NUEVA</span>' : ''}
+      ${a._eliminada ? '<span class="tag elim">FUERA DEL PLAN</span>' : ''}</h2>
+    <div class="meta mono">WBS ${esc(a.o)} · ${a.paquetes.length} tareas · ${subs.length} subtareas ·
       ${fmt(D(a.s))} → ${fmt(D(a.f))}</div>
     <div class="owner"><span class="lbl disp">Avance</span>
       <div class="bar" style="width:120px"><i style="width:${p}%"></i></div>
-      <span class="mono" style="font-size:12px;font-weight:600">${p}%</span></div></div>`;
+      <span class="mono" style="font-size:12px;font-weight:600">${p}%</span>
+      <button class="mini" id="addtarea">+ Crear tarea</button>
+      <button class="mini" id="editarea">Editar área</button></div></div>`;
 
   let html = '', any = false;
   for (const pk of a.paquetes){
     const vis = pk.subs.filter(match);
-    if (!vis.length) continue;
+    if (!vis.length && !pk._nueva) continue;
     any = true;
     const pp = pct(pk.subs);
     const rows = vis.map(s => {
@@ -1622,7 +1749,7 @@ function render(){
       return `<div class="stw ${e==='lista'&&!s._eliminada?'done':''} ${s._eliminada?'fuera':''}">
         <div class="st ${s.d>1?'d2':''}">
           ${control}
-          <span class="st-n" title="${esc(s.o)} · ${esc(s.n)}">${esc(s.n)}${marcas}</span>
+          <span class="st-n" title="${s._nueva ? '' : esc(s.o) + ' · '}${esc(s.n)}">${esc(s.n)}${marcas}</span>
           ${quien}
           <span class="st-r">${esc(s.resp || '')}</span>
           <span class="st-t mono" title="${esc(rango(s.s,s.f))}">${esc(rango(s.s,s.f))}</span>
@@ -1641,23 +1768,29 @@ function render(){
            placeholder="Nombre de la empresa" maxlength="60" aria-label="Empresa dueña de este paquete">`
       : `<button type="button" class="pk-r ${duenoNombre?'':'none'}" data-edit-owner="${esc(pk.o)}"
            title="Tocar para escribir el dueño">${esc(duenoNombre || 'sin dueño')}</button>`;
-    html += `<div class="pk ${OPEN.has(pk.o)?'open':''}" data-pk="${esc(pk.o)}">
+    html += `<div class="pk ${OPEN.has(pk.o)?'open':''} ${pk._eliminada?'fuera':''}" data-pk="${esc(pk.o)}">
       <div class="pk-h" role="button" tabindex="0"><span class="chev">▶</span>
-        <span class="pk-n"><span class="wbs">${esc(pk.o)}</span>${esc(pk.n)}</span>
+        <span class="pk-n"><span class="wbs">${pk._nueva ? '' : esc(pk.o)}</span>${esc(pk.n)}
+          ${pk._nueva ? '<span class="tag nueva">NUEVA</span>' : ''}
+          ${pk._reprogramada ? `<span class="tag reprog" title="Fechas cambiadas. Original: ${esc(rango(pk._origS,pk._origF))}">REPROGRAMADA</span>` : ''}
+          ${pk._eliminada ? '<span class="tag elim">FUERA</span>' : ''}</span>
         ${duenoHtml}
         <span class="pk-t mono" title="${esc(rango(pk.s,pk.f))}">${esc(rango(pk.s,pk.f))}</span>
         <span class="pk-bar bar ${pp?'':'z'}"><i style="width:${pp}%"></i></span>
-        <span class="pk-pc mono">${pp}%</span></div>
+        <span class="pk-pc mono">${pp}%</span>
+        <button class="accbtn" data-acc-pk="${esc(pk.o)}" title="Editar o quitar esta tarea"
+          aria-label="Opciones de la tarea">⋯</button></div>
       <div class="pk-body">
         <div class="pk-tools">
-          <button class="mini" data-all="${esc(pk.o)}">Marcar todo listo</button>
-          <button class="mini" data-nueva="${esc(pk.o)}">+ Agregar tarea</button>
+          <button class="mini" data-all="${esc(pk.o)}">Marcar todo completado</button>
+          <button class="mini" data-nueva="${esc(pk.o)}">+ Crear subtarea</button>
           <span class="mono" style="font-size:10.5px;color:var(--dim)">${vis.length}/${pk.subs.length} visibles</span>
         </div>${rows}</div></div>`;
   }
 
   $('list').innerHTML = any ? html : `<div class="empty"><b>Sin resultados</b>
-    Ningún paquete de esta área coincide con el filtro. Prueba con «Todas» o limpia la búsqueda.</div>`;
+    Ninguna tarea de esta área coincide con el filtro. Prueba con «Todas», limpia la
+    búsqueda, o crea una tarea nueva.</div>`;
 
   $('list').querySelectorAll('.pk-h').forEach(b => {
     b.onclick = () => {
@@ -1685,13 +1818,20 @@ function render(){
   });
   $('list').querySelectorAll('.fotobtn').forEach(b => b.onclick = () => abrirFotos(b.dataset.k, b.dataset.n));
   $('list').querySelectorAll('[data-acc]').forEach(b => b.onclick = () => abrirTarea({ key: b.dataset.acc }));
-  $('list').querySelectorAll('[data-nueva]').forEach(b => b.onclick = () => abrirTarea({ pk: b.dataset.nueva }));
+  $('list').querySelectorAll('[data-acc-pk]').forEach(b => b.onclick = e => {
+    e.stopPropagation();   // no abrir/cerrar la tarea al tocar sus opciones
+    abrirTarea({ key: b.dataset.accPk });
+  });
+  $('list').querySelectorAll('[data-nueva]').forEach(b => b.onclick = () =>
+    abrirTarea({ crear:'sub', pk: b.dataset.nueva }));
+  if ($('addtarea')) $('addtarea').onclick = () => abrirTarea({ crear:'tarea', pk: sel });
+  if ($('editarea')) $('editarea').onclick = () => abrirTarea({ key: sel });
   $('list').querySelectorAll('[data-all]').forEach(b => b.onclick = async () => {
     const pk = a.paquetes.find(x => x.o === b.dataset.all);
     const antes = {};
     pk.subs.forEach(s => { antes[s.k] = MARKS[s.k] ? { ...MARKS[s.k] } : null;
                            MARKS[s.k] = { status:'lista', pct:100, who:ME, at:new Date().toISOString() }; });
-    await guardar(pk.subs.map(s => fila(s.k, 'lista', 100)), `cerró el paquete ${pk.o}`,
+    await guardar(pk.subs.map(s => fila(s.k, 'lista', 100)), `completó la tarea «${pk.n.slice(0,40)}»`,
       () => pk.subs.forEach(s => { antes[s.k] ? MARKS[s.k] = antes[s.k] : delete MARKS[s.k]; }));
   });
 
@@ -1836,7 +1976,9 @@ async function handleFile(file){
         let planIdAnterior = null, clavesAnteriores = [];
         if (esPlanDistinto){
           planIdAnterior = PLAN_ID;
-          clavesAnteriores = PLAN ? allSubs().map(s => s.k) : [];
+          // incluye las eliminadas: sus fotos también ocupan espacio y deben
+          // borrarse (allSubs() las filtra, por eso aquí se usa la otra versión)
+          clavesAnteriores = PLAN ? allSubsConEliminadas().map(s => s.k) : [];
 
           // limpiar la memoria del navegador: si no, un dueño o una marca del
           // plan anterior podría seguir viéndose hasta recargar la página.
@@ -2228,13 +2370,13 @@ async function generarInforme(){
 
       <div class="inf-kpis">
         <div class="inf-k"><div class="l">Avance al cierre</div><div class="v">${avance}%</div></div>
-        <div class="inf-k"><div class="l">Subtareas listas</div><div class="v">${listas}/${conocidos.length}</div></div>
+        <div class="inf-k"><div class="l">Subtareas completadas</div><div class="v">${listas}/${conocidos.length}</div></div>
         <div class="inf-k"><div class="l">Atrasadas</div><div class="v" style="color:var(--late)">${atrasadas}</div></div>
         <div class="inf-k"><div class="l">Eventos del turno</div><div class="v">${eventos.length}</div></div>
       </div>
 
       <table class="inf-tbl">
-        <thead><tr><th>Área</th><th style="text-align:right">Avance</th><th style="text-align:right">Listas</th></tr></thead>
+        <thead><tr><th>Área</th><th style="text-align:right">Avance</th><th style="text-align:right">Completadas</th></tr></thead>
         <tbody>${filas}</tbody>
       </table>
 
@@ -2246,36 +2388,54 @@ async function generarInforme(){
 }
 
 /* ═══════════════════ editor de tarea ═══════════════════ */
-let tareaActual = null;    // {key} para editar, o {pk} para crear una nueva
+let tareaActual = null;    // {key} para editar, o {crear:'area'|'tarea'|'sub', pk} para crear
 
 /* Los campos datetime-local trabajan con «YYYY-MM-DDTHH:MM» sin zona horaria,
    que es exactamente la convención de hora de pared que usa el resto del tablero. */
 const aInput = iso => iso ? String(iso).slice(0,16) : '';
 
+const TITULOS = {
+  area: ['Crear área', 'Se agregará al listado de la izquierda. Las áreas no llevan fechas propias: se calculan de sus tareas.'],
+  tarea:['Crear tarea', 'Se agregará al área seleccionada.'],
+  sub:  ['Crear subtarea', 'Se agregará dentro de la tarea seleccionada.']
+};
+
 function abrirTarea(opts){
   tareaActual = opts;
-  const esNueva = !!opts.pk;
-  const s = esNueva ? null : idx[opts.key];
-  if (!esNueva && !s) return;
+  const crear = opts.crear;
+  const r = crear ? null : buscarElemento(opts.key);
+  if (!crear && !r) return;
+  const el = r?.el;
+  const esArea = crear === 'area' || r?.tipo === 'área';
 
-  $('tarea-titulo').textContent = esNueva ? 'Agregar tarea' : 'Editar tarea';
-  $('tarea-sub').textContent = esNueva
-    ? `Se agregará al paquete ${opts.pk}. Quedará marcada como NUEVA para distinguirla del plan original.`
-    : s.n;
-  $('tarea-nombre-wrap').style.display = (esNueva || s._nueva) ? '' : 'none';
-  $('tarea-nombre').value = esNueva ? '' : (s._nueva ? s.n : '');
-  $('tarea-inicio').value = aInput(esNueva ? null : s.s);
-  $('tarea-fin').value = aInput(esNueva ? null : s.f);
+  $('tarea-titulo').textContent = crear
+    ? TITULOS[crear][0]
+    : `Editar ${r.tipo}`;
+  $('tarea-sub').textContent = crear ? TITULOS[crear][1] : el.n;
+
+  // el nombre se puede escribir al crear, o al editar algo creado en terreno
+  const puedeNombre = !!crear || !!el._nueva;
+  $('tarea-nombre-wrap').style.display = puedeNombre ? '' : 'none';
+  $('tarea-nombre').value = crear ? '' : (el._nueva ? el.n : '');
+
+  // las áreas no tienen fechas propias: se derivan de sus tareas
+  $('tarea-fechas').style.display = esArea ? 'none' : '';
+  $('tarea-inicio').value = aInput(crear ? null : el.s);
+  $('tarea-fin').value = aInput(crear ? null : el.f);
   $('tarea-error').textContent = '';
 
-  $('tarea-acciones').style.display = esNueva ? 'none' : '';
-  $('tarea-eliminar').style.display = (!esNueva && !s._eliminada) ? '' : 'none';
-  $('tarea-restaurar').style.display = (!esNueva && s._eliminada) ? '' : 'none';
-  $('tarea-revertir').style.display = (!esNueva && s._reprogramada) ? '' : 'none';
+  // si no hay ni nombre ni fechas que editar (un área que vino del archivo),
+  // guardar no haría nada: se oculta el botón en vez de crear un registro vacío.
+  $('tarea-guardar').style.display = (puedeNombre || !esArea) ? '' : 'none';
 
-  $('tarea-original').innerHTML = (!esNueva && s._reprogramada)
+  $('tarea-acciones').style.display = crear ? 'none' : '';
+  $('tarea-eliminar').style.display = (!crear && !el._eliminada) ? '' : 'none';
+  $('tarea-restaurar').style.display = (!crear && el._eliminada) ? '' : 'none';
+  $('tarea-revertir').style.display = (!crear && el._reprogramada) ? '' : 'none';
+
+  $('tarea-original').innerHTML = (!crear && el._reprogramada)
     ? `<div class="diff"><div style="color:var(--muted)">En el plan original:
-         <b>${esc(rango(s._origS, s._origF))}</b></div></div>`
+         <b>${esc(rango(el._origS, el._origF))}</b></div></div>`
     : '';
 
   actualizarDuracion();
@@ -2292,36 +2452,150 @@ function actualizarDuracion(){
 }
 
 async function guardarTarea(){
-  const inicio = $('tarea-inicio').value, fin = $('tarea-fin').value;
   const err = m => { $('tarea-error').textContent = m; };
   err('');
+  const crear = tareaActual.crear;
+  const nombre = $('tarea-nombre').value.trim();
+  const inicio = $('tarea-inicio').value, fin = $('tarea-fin').value;
+  const necesitaFechas = crear !== 'area' &&
+    !(!crear && buscarElemento(tareaActual.key)?.tipo === 'área');
 
-  if (!inicio || !fin) return err('Indica la fecha de inicio y la de término.');
-  if (D(fin) <= D(inicio)) return err('El término debe ser posterior al inicio.');
+  if (necesitaFechas){
+    if (!inicio || !fin) return err('Indica la fecha de inicio y la de término.');
+    if (D(fin) <= D(inicio)) return err('El término debe ser posterior al inicio.');
+  }
 
-  const esNueva = !!tareaActual.pk;
-  if (esNueva){
-    const nombre = $('tarea-nombre').value.trim();
-    if (!nombre) return err('Escribe un nombre para la tarea.');
-    await crearTarea(tareaActual.pk, nombre, inicio + ':00', fin + ':00');
+  if (crear){
+    if (!nombre) return err('Escribe un nombre.');
+    if (crear === 'area')       await crearArea(nombre);
+    else if (crear === 'tarea') await crearTareaEnArea(tareaActual.pk, nombre, inicio + ':00', fin + ':00');
+    else                        await crearSubtarea(tareaActual.pk, nombre, inicio + ':00', fin + ':00');
   } else {
-    const s = idx[tareaActual.key];
-    const cambio = { s: inicio + ':00', f: fin + ':00' };
-    if (s._nueva){
-      const nombre = $('tarea-nombre').value.trim();
-      if (!nombre) return err('Escribe un nombre para la tarea.');
+    const r = buscarElemento(tareaActual.key);
+    const cambio = {};
+    if (necesitaFechas){ cambio.s = inicio + ':00'; cambio.f = fin + ':00'; }
+    if (r.el._nueva){
+      if (!nombre) return err('Escribe un nombre.');
       cambio.nombre = nombre;
     }
-    await aplicarCambio(tareaActual.key, cambio,
-      `reprogramó «${s.n.slice(0,40)}» a ${fmt(D(inicio))} → ${fmt(D(fin))}`);
+    await aplicarCambio(tareaActual.key, cambio, `editó «${r.el.n.slice(0,40)}»`);
   }
   $('tarea').classList.remove('on');
+}
+
+/* ═══════════════════ respaldo ═══════════════════
+   Pensado para el peor caso: si Supabase no responde a mitad de turno, esto
+   es lo único que va a quedar. Por eso arma DOS archivos — uno legible por
+   una persona sin abrir nada más (CSV, se abre en Excel o se imprime), y uno
+   con el detalle técnico completo (JSON), por si algún día hace falta
+   reconstruir el estado exacto con precisión. */
+
+function csvEscape(v){
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+}
+
+function descargarArchivo(nombre, contenido, tipo){
+  const blob = new Blob([contenido], { type: tipo });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function armarRespaldo(){
+  const ahora = NOW();
+  const filas = [];   // una fila por subtarea, para el CSV
+  const areasJson = [];
+
+  PLAN.areas.forEach(a => {
+    const paquetesJson = [];
+    a.paquetes.forEach(p => {
+      const duenoActual = p.o in OWNERS ? OWNERS[p.o].name : (p.resp || '');
+      const subsJson = [];
+      p.subs.forEach(s => {
+        const estado = s._eliminada ? 'eliminada' : shown(s);
+        const avance = s._eliminada ? 0 : progressOf(s);
+        const m = MARKS[s.k];
+        const fila = {
+          area: a.n, paquete: p.n, dueno_paquete: duenoActual,
+          subtarea: s.n, wbs: s._nueva ? '(creada en terreno)' : s.o, estado, avance_pct: avance,
+          nueva: !!s._nueva, eliminada: !!s._eliminada, reprogramada: !!s._reprogramada,
+          responsable: s.resp || '', actualizado_por: m?.who || '', actualizado_cuando: m?.at || '',
+          inicio_planificado: s.s || '', fin_planificado: s.f || ''
+        };
+        filas.push(fila);
+        subsJson.push({ ...fila });
+      });
+      paquetesJson.push({ wbs: p.o, nombre: p.n, dueno: duenoActual, subtareas: subsJson });
+    });
+    areasJson.push({ wbs: a.o, nombre: a.n, paquetes: paquetesJson });
+  });
+
+  const all = allSubs();
+  const json = {
+    generado: ahora.toISOString().replace('T',' ').slice(0,19) + ' (hora de Chile)',
+    proyecto: PLAN.proyecto, plan_id: PLAN_ID,
+    ventana: { inicio: PLAN.inicio, fin: PLAN.fin },
+    resumen: {
+      areas: PLAN.areas.length,
+      paquetes: PLAN.areas.reduce((n,a) => n + a.paquetes.length, 0),
+      subtareas_activas: all.length,
+      subtareas_eliminadas: allSubsConEliminadas().length - all.length,
+      avance_global_pct: pct(all),
+      listas: all.filter(s => statusOf(s) === 'lista').length,
+      atrasadas: all.filter(s => shown(s) === 'atrasada').length
+    },
+    areas: areasJson,
+    actividad_reciente: feed.slice(0, 40).map(e => ({
+      quien: e.who, texto: e.txt, cuando: e.t.toISOString().replace('T',' ').slice(0,19)
+    }))
+  };
+
+  return { json, filas };
+}
+
+async function descargarRespaldo(){
+  const boton = $('respaldar');
+  const original = boton.textContent;
+  boton.textContent = 'Preparando…';
+  boton.disabled = true;
+
+  // se intenta traer lo más fresco posible antes de armar el respaldo, pero
+  // si Supabase no responde, igual se genera con lo que ya está en memoria —
+  // ese es justamente el escenario para el que existe este botón.
+  if (ONLINE){
+    try { await pullMarks(); await pullOwners(); await pullEdits(); reconstruir(); }
+    catch (e){ /* seguir igual, con lo que ya se tenía cargado */ }
+  }
+
+  const { json, filas } = armarRespaldo();
+  const sello = NOW().toISOString().replace('T','_').replace(/:/g,'-').slice(0,19);
+  const base = `respaldo_${(PLAN.proyecto||'detencion').replace(/[^a-z0-9]+/gi,'_').slice(0,40)}_${sello}`;
+
+  const encabezados = ['area','paquete','dueno_paquete','subtarea','wbs','estado','avance_pct',
+    'nueva','eliminada','reprogramada','responsable','actualizado_por','actualizado_cuando',
+    'inicio_planificado','fin_planificado'];
+  const csv = '\uFEFF' + [
+    encabezados.join(','),
+    ...filas.map(f => encabezados.map(c => csvEscape(f[c])).join(','))
+  ].join('\r\n');
+
+  descargarArchivo(base + '.csv', csv, 'text/csv;charset=utf-8');
+  setTimeout(() => descargarArchivo(base + '.json', JSON.stringify(json, null, 2), 'application/json'), 300);
+
+  const txt = `descargó un respaldo (${filas.length} subtareas)`;
+  local(txt); if (ONLINE) pushLog(txt);
+
+  boton.textContent = original;
+  boton.disabled = false;
 }
 
 function boot(){
   $('title').textContent = PLAN.proyecto;
   $('sub').textContent = `${allSubs().length} subtareas · ` +
-    `${PLAN.areas.reduce((n,a) => n + a.paquetes.length, 0)} paquetes de trabajo` +
+    `${PLAN.areas.reduce((n,a) => n + a.paquetes.length, 0)} tareas` +
     (ONLINE ? '' : ' · modo demostración');
   $('curvearea').innerHTML = '<option value="">Todas las áreas</option>' +
     PLAN.areas.map(a => `<option value="${esc(a.o)}">${esc(a.n)}</option>`).join('');
@@ -2382,23 +2656,30 @@ function askName(){
     if (!$('informe-out').innerHTML.trim()) generarInforme();
   };
   $('closeinforme').onclick = () => $('informe').classList.remove('on');
+  $('respaldar').onclick = descargarRespaldo;
   $('closetarea').onclick = () => $('tarea').classList.remove('on');
   $('tarea-guardar').onclick = guardarTarea;
   $('tarea-inicio').oninput = actualizarDuracion;
   $('tarea-fin').oninput = actualizarDuracion;
   $('tarea-eliminar').onclick = async () => {
-    if (!confirm('¿Quitar esta tarea del plan?\n\nSeguirá visible como registro, pero dejará de contar para el avance.')) return;
-    await eliminarTarea(tareaActual.key);
+    const r = buscarElemento(tareaActual.key);
+    const aviso = r?.tipo === 'área'
+      ? '¿Quitar esta área del plan?\n\nTodas sus tareas y subtareas dejarán de contar para el avance. Seguirán visibles como registro.'
+      : r?.tipo === 'tarea'
+      ? '¿Quitar esta tarea del plan?\n\nTodas sus subtareas dejarán de contar para el avance. Seguirán visibles como registro.'
+      : '¿Quitar esta subtarea del plan?\n\nSeguirá visible como registro, pero dejará de contar para el avance.';
+    if (!confirm(aviso)) return;
+    await eliminarElemento(tareaActual.key);
     $('tarea').classList.remove('on');
   };
   $('tarea-restaurar').onclick = async () => {
-    await restaurarTarea(tareaActual.key);
+    await restaurarElemento(tareaActual.key);
     $('tarea').classList.remove('on');
   };
   $('tarea-revertir').onclick = async () => {
-    const s = idx[tareaActual.key];
+    const r = buscarElemento(tareaActual.key);
     await aplicarCambio(tareaActual.key, { s:null, f:null },
-      `devolvió «${s.n.slice(0,40)}» a sus fechas originales`);
+      `devolvió «${r.el.n.slice(0,40)}» a sus fechas originales`);
     $('tarea').classList.remove('on');
   };
   $('informe-generar').onclick = generarInforme;
