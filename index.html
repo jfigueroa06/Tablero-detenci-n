@@ -134,7 +134,7 @@ main{flex:1;min-width:0;min-height:0;padding:0 0 60px;overflow-y:auto}
 .seg button{padding:6px 10px;font-size:11px;font-weight:500;color:var(--muted);border-right:1px solid var(--line)}
 .seg button:last-child{border-right:none}
 .seg button.on{background:var(--panel2);color:var(--text)}
-.seg button.on[data-s=lista]{color:var(--ok)} .seg button.on[data-s=atrasada]{color:var(--late)}
+.seg button.on[data-s=Completada]{color:var(--ok)} .seg button.on[data-s=atrasada]{color:var(--late)}
 
 .ahead{padding:16px 20px 12px;border-bottom:1px solid var(--line)}
 .ahead h2{font-family:'IBM Plex Sans',sans-serif;font-size:19px;font-weight:700;margin:0;color:var(--text)}
@@ -209,7 +209,7 @@ main{flex:1;min-width:0;min-height:0;padding:0 0 60px;overflow-y:auto}
   padding:4px 0;width:78px;text-align:center;border-radius:3px;border:1px solid transparent}
 .badge.pendiente{color:var(--pend);background:var(--pend-bg)}
 .badge.atrasada{color:var(--late);background:var(--late-bg)}
-.badge.lista{color:var(--ok);background:var(--ok-bg)}
+.badge.completada{color:var(--ok);background:var(--ok-bg)}
 .badge:hover{filter:brightness(.97)}
 .pctwrap{flex:0 0 auto;width:78px;height:26px;border-radius:3px;position:relative;
   background:var(--wip-bg);border:1px solid transparent}
@@ -521,7 +521,7 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
         <button data-s="todas" class="on">Todas</button>
         <button data-s="pendiente">Pendientes</button>
         <button data-s="atrasada">Atrasadas</button>
-        <button data-s="lista">Completadas</button>
+        <button data-s="completada">Completadas</button>
       </div>
       <div class="tools-admin" id="toolsadmin">
         <select id="fresp" aria-label="Filtrar por responsable"><option value="">Todo responsable</option></select>
@@ -927,19 +927,19 @@ function corto(nombre){
   return p.length < 2 ? (p[0] || '') : `${p[0]} ${p[1][0].toUpperCase()}.`;
 }
 
-const LABEL = {pendiente:'PENDIENTE', curso:'EN CURSO', lista:'COMPLETADA', atrasada:'ATRASADA'};
+const LABEL = {pendiente:'PENDIENTE', curso:'EN CURSO', completada:'COMPLETADA', atrasada:'ATRASADA'};
 
 function statusOf(s){
   const m = MARKS[s.k];
   if (m) return m.status;
-  return s.p >= 100 ? 'lista' : s.p > 0 ? 'curso' : 'pendiente';
+  return s.p >= 100 ? 'completada' : s.p > 0 ? 'curso' : 'pendiente';
 }
 
 /* Avance de una subtarea, de 0 a 100. Cualquier entero, sin pasos fijos:
    quien reporta el avance lo escribe directamente.                            */
 function progressOf(s){
   const st = statusOf(s);
-  if (st === 'lista') return 100;
+  if (st === 'completada') return 100;
   if (st !== 'curso') return 0;
   const m = MARKS[s.k];
   if (m && m.pct != null) return m.pct;
@@ -948,7 +948,7 @@ function progressOf(s){
 
 function shown(s){
   const st = statusOf(s);
-  if (st === 'lista') return 'lista';
+  if (st === 'completada') return 'completada';
   const f = D(s.f);
   if (f && f < NOW()) return 'atrasada';
   return st;
@@ -1010,7 +1010,7 @@ function snapshotAt(subs, day){
     if (s.p > 0 && PLAN_LOADED_AT && PLAN_LOADED_AT <= day) valor = Math.min(100, s.p);
     const m = MARKS[s.k];
     if (m && m.at && chileDate(m.at) <= day){
-      valor = m.status === 'lista' ? 100 : m.status === 'curso' ? (m.pct ?? 0) : 0;
+      valor = m.status === 'completada' ? 100 : m.status === 'curso' ? (m.pct ?? 0) : 0;
     }
     if (valor != null) realSuma += valor * w;
   });
@@ -1447,7 +1447,7 @@ const EDITANDO = new Set();   // claves cuyo control está abierto para escribir
 let FOCO_PENDIENTE = null;    // clave a enfocar apenas se repinte la fila
 
 /* Abre el control de una subtarea para escribir el porcentaje: convierte la
-   insignia (PENDIENTE / ATRASADA / LISTA) en un campo numérico editable. */
+   insignia (PENDIENTE / ATRASADA / completada) en un campo numérico editable. */
 function abrirEdicion(key){
   EDITANDO.add(key);
   FOCO_PENDIENTE = key;
@@ -1455,7 +1455,7 @@ function abrirEdicion(key){
 }
 
 /* Guarda el porcentaje escrito. 0 o vacío = vuelve a pendiente/atrasada según
-   la fecha. 100 = pasa a lista automáticamente. Cualquier valor entre medio
+   la fecha. 100 = pasa a completada automáticamente. Cualquier valor entre medio
    se guarda tal cual, sin redondear a pasos fijos.                            */
 async function setPct(key, valorCrudo){
   const s = idx[key];
@@ -1465,10 +1465,10 @@ async function setPct(key, valorCrudo){
   v = Math.max(0, Math.min(100, v));
   EDITANDO.delete(key);
 
-  const status = v >= 100 ? 'lista' : v > 0 ? 'curso' : 'pendiente';
+  const status = v >= 100 ? 'completada' : v > 0 ? 'curso' : 'pendiente';
   MARKS[key] = { status, pct: v, who: ME, at: new Date().toISOString() };
   const nombre = s.n.slice(0,36) + (s.n.length > 36 ? '…' : '');
-  const txt = status === 'lista' ? `marcó «${nombre}» como LISTA`
+  const txt = status === 'completada' ? `marcó «${nombre}» como completada`
     : status === 'pendiente' ? `dejó «${nombre}» en pendiente`
     : `dejó «${nombre}» en ${v}%`;
   await guardar([fila(key, status, v)], txt,
@@ -1634,7 +1634,7 @@ function ventana(){
 
 function kpis(){
   const all = allSubs();
-  const listas = all.filter(s => statusOf(s) === 'lista').length;
+  const listas = all.filter(s => statusOf(s) === 'completada').length;
   const atr = all.filter(s => shown(s) === 'atrasada').length;
   // mismo cálculo que las barras de área y paquete: promedio del avance de
   // cada subtarea, donde «en curso» aporta su porcentaje y no cero.
@@ -1718,8 +1718,8 @@ function render(){
       let control;
       if (s._eliminada){
         control = `<span class="badge eliminada" title="Fuera del plan: no cuenta para el avance">FUERA</span>`;
-      } else if (e === 'lista' && !editando){
-        control = `<button class="badge lista" data-edit="${esc(s.k)}" title="Tocar para corregir">LISTA</button>`;
+      } else if (e === 'completada' && !editando){
+        control = `<button class="badge completada" data-edit="${esc(s.k)}" title="Tocar para corregir">completada</button>`;
       } else if ((e === 'pendiente' || e === 'atrasada') && av === 0 && !editando){
         control = `<button class="badge ${e}" data-edit="${esc(s.k)}" title="Tocar para escribir el avance">
           ${e === 'atrasada' ? 'ATRASADA' : 'PENDIENTE'}</button>`;
@@ -1743,7 +1743,7 @@ function render(){
              <span class="track"><i style="width:${av}%"></i></span>
              <b class="mono">${av}%</b></div>`
         : '';
-      return `<div class="stw ${e==='lista'&&!s._eliminada?'done':''} ${s._eliminada?'fuera':''}">
+      return `<div class="stw ${e==='completada'&&!s._eliminada?'done':''} ${s._eliminada?'fuera':''}">
         <div class="st ${s.d>1?'d2':''}">
           ${control}
           <span class="st-n" title="${s._nueva ? '' : esc(s.o) + ' · '}${esc(s.n)}">${esc(s.n)}${marcas}</span>
@@ -1827,8 +1827,8 @@ function render(){
     const pk = a.paquetes.find(x => x.o === b.dataset.all);
     const antes = {};
     pk.subs.forEach(s => { antes[s.k] = MARKS[s.k] ? { ...MARKS[s.k] } : null;
-                           MARKS[s.k] = { status:'lista', pct:100, who:ME, at:new Date().toISOString() }; });
-    await guardar(pk.subs.map(s => fila(s.k, 'lista', 100)), `completó la tarea «${pk.n.slice(0,40)}»`,
+                           MARKS[s.k] = { status:'completada', pct:100, who:ME, at:new Date().toISOString() }; });
+    await guardar(pk.subs.map(s => fila(s.k, 'completada', 100)), `completó la tarea «${pk.n.slice(0,40)}»`,
       () => pk.subs.forEach(s => { antes[s.k] ? MARKS[s.k] = antes[s.k] : delete MARKS[s.k]; }));
   });
 
@@ -2120,7 +2120,7 @@ function renderCurve(){
    fotos de una tarea basta con pedirle a Storage los archivos que empiezan
    con esa ruta — no hace falta llevar un registro aparte en la base de datos. */
 const FOTOS_BUCKET = 'fotos';
-const FOTOS_CACHE = {};   // clave de subtarea -> lista de fotos ya consultadas
+const FOTOS_CACHE = {};   // clave de subtarea -> completada de fotos ya consultadas
 
 function storageUrl(path){
   // path va SIN codificar (ej. "<guid>/172xxx_Nombre.jpg"); cada segmento se
@@ -2238,11 +2238,11 @@ function pintarFotos(fotos){
 
 async function subirFotosSeleccionadas(files){
   const key = fotoKeyActual;
-  const lista = [...files];
-  for (let i = 0; i < lista.length; i++){
-    $('fotoestado').textContent = lista.length > 1 ? `Subiendo ${i+1}/${lista.length}…` : 'Subiendo…';
+  const completada = [...files];
+  for (let i = 0; i < completada.length; i++){
+    $('fotoestado').textContent = completada.length > 1 ? `Subiendo ${i+1}/${completada.length}…` : 'Subiendo…';
     try {
-      await subirFoto(key, lista[i]);
+      await subirFoto(key, completada[i]);
     } catch (e){
       $('fotoestado').textContent = '';
       alert('No se pudo subir la foto: ' + e.message);
@@ -2289,14 +2289,14 @@ function shownAt(s, refTime){
   const m = MARKS[s.k];
   let status, pctVal;
   if (m && m.at && chileDate(m.at) <= refTime){
-    status = m.status; pctVal = m.pct ?? (status === 'Completada' ? 100 : 0);
+    status = m.status; pctVal = m.pct ?? (status === 'completada' ? 100 : 0);
   } else if (!m){
-    status = s.p >= 100 ? 'Completada' : s.p > 0 ? 'curso' : 'pendiente';
-    pctVal = status === 'Completada' ? 100 : status === 'curso' ? Math.round(s.p) : 0;
+    status = s.p >= 100 ? 'completada' : s.p > 0 ? 'curso' : 'pendiente';
+    pctVal = status === 'completada' ? 100 : status === 'curso' ? Math.round(s.p) : 0;
   } else {
     return { estado: 'desconocido', pct: null };
   }
-  if (status === 'Completada') return { estado: 'Completada', pct: 100 };
+  if (status === 'completada') return { estado: 'completada', pct: 100 };
   const f = D(s.f);
   if (f && f < refTime) return { estado: 'atrasada', pct: pctVal };
   return { estado: status === 'curso' ? 'curso' : 'pendiente', pct: pctVal };
@@ -2327,7 +2327,7 @@ async function generarInforme(){
   const all = allSubs().map(s => ({ s, r: shownAt(s, fin) }));
   const conocidos = all.filter(x => x.r.estado !== 'desconocido');
   const desconocidos = all.length - conocidos.length;
-  const listas = conocidos.filter(x => x.r.estado === 'Completada').length;
+  const listas = conocidos.filter(x => x.r.estado === 'completada').length;
   const atrasadas = conocidos.filter(x => x.r.estado === 'atrasada').length;
   const avance = Math.round(promedioPonderado(
     conocidos.map(x => ({ peso: duracion(x.s), valor: x.r.pct }))));
@@ -2335,7 +2335,7 @@ async function generarInforme(){
   const porArea = PLAN.areas.map(a => {
     const items = areaSubs(a).map(s => ({ s, r: shownAt(s, fin) })).filter(x => x.r.estado !== 'desconocido');
     const pctA = Math.round(promedioPonderado(items.map(x => ({ peso: duracion(x.s), valor: x.r.pct }))));
-    return { nombre: a.n, pct: pctA, listas: items.filter(x => x.r.estado === 'lista').length,
+    return { nombre: a.n, pct: pctA, listas: items.filter(x => x.r.estado === 'completada').length,
       total: areaSubs(a).length, conSpan: items.length };
   });
 
@@ -2541,8 +2541,8 @@ function armarRespaldo(){
       subtareas_activas: all.length,
       subtareas_eliminadas: allSubsConEliminadas().length - all.length,
       avance_global_pct: pct(all),
-      listas: all.filter(s => statusOf(s) === 'Completada').length,
-      atrasadas: all.filter(s => shown(s) === 'Atrasada').length
+      listas: all.filter(s => statusOf(s) === 'completada').length,
+      atrasadas: all.filter(s => shown(s) === 'atrasada').length
     },
     areas: areasJson,
     actividad_reciente: feed.slice(0, 40).map(e => ({
