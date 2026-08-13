@@ -26,7 +26,7 @@ module.exports = manejar(async function (context, req){
   );
 
   if (!planes.length){
-    return respuesta(200, { plan: null, planId: null, marcas: [], duenos: [], cambios: [], log: [] });
+    return respuesta(200, { plan: null, planId: null, marcas: [], duenos: [], cambios: [], comentarios: [], log: [] });
   }
 
   const doc = planes[0];
@@ -42,8 +42,8 @@ module.exports = manejar(async function (context, req){
     [...params, { name: '@tipo', value: tipo }]
   );
 
-  const [marcas, duenos, cambios] = await Promise.all([
-    traer('marca'), traer('dueno'), traer('cambio')
+  const [marcas, duenos, cambios, comentarios] = await Promise.all([
+    traer('marca'), traer('dueno'), traer('cambio'), traer('comentario')
   ]);
 
   // La bitácora se limita: solo interesan los eventos recientes para el panel
@@ -66,6 +66,7 @@ module.exports = manejar(async function (context, req){
       key: c.clave, nueva: c.nueva, eliminada: c.eliminada, nombre: c.nombre,
       pk: c.pk, starts_at: c.inicio, ends_at: c.fin, who: c.quien, at: c.at
     })),
+    comentarios: comentarios.map(c => ({ key: c.clave, id: c.comentarioId, txt: c.texto, who: c.quien, at: c.at })),
     log: log.map(l => ({ id: l.id, who: l.quien, txt: l.texto, at: l.at }))
   });
 });
