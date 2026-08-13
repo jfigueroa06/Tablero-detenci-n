@@ -1810,39 +1810,21 @@ function render(){
 
 /* ═══════════════════ carga de archivo ═══════════════════ */
 /* Borra de forma permanente todo lo asociado a la detención anterior:
-   marcas, dueños, bitácora y fotos. Corre en segundo plano, después de que
-   el equipo ya puede ver y trabajar en el plan nuevo — un fallo aquí no
-   debe bloquear ni deshacer el cambio de plan, que ya quedó confirmado. */
-async function limpiarPlanAnterior(planIdAnterior, clavesAnteriores){
+   plan, marcas, dueños, cambios, bitácora y fotos — todo en una sola llamada.
+   Corre en segundo plano, después de que el equipo ya puede ver y trabajar
+   en el plan nuevo — un fallo aquí no debe bloquear ni deshacer el cambio
+   de plan, que ya quedó confirmado. */
+async function limpiarPlanAnterior(planIdAnterior){
   if (!ONLINE || !planIdAnterior) return;
-
   try {
-    // una sola llamada borra plan, marcas, dueños, cambios y bitácora:
-    // en Cosmos todo comparte la clave de partición planId.
     const r = await api('limpiar', {
       method: 'POST',
       body: JSON.stringify({ planId: planIdAnterior })
     });
-    local(`se liberaron ${r.borrados} registros de la detención anterior`);
+    local(`se liberaron ${r.borrados} registros y ${r.fotosBorradas} fotos de la detención anterior`);
   } catch (e){
     local(`no se pudo liberar todo el espacio de la detención anterior: ${e.message}`);
   }
-
-  // Fotos: no hay una forma de borrarlas «todas de un plan» en un solo paso,
-  // porque se guardan por tarea, no por plan. Se revisa tarea por tarea, en
-  // tandas paralelas para no demorar minutos si eran muchas subtareas.
-  let fotosBorradas = 0;
-  const TANDA = 25;
-  for (let i = 0; i < clavesAnteriores.length; i += TANDA){
-    const lote = clavesAnteriores.slice(i, i + TANDA);
-    const resultados = await Promise.allSettled(lote.map(async k => {
-      const fotos = await listFotos(k);
-      for (const f of fotos) await borrarFoto(f.path);
-      return fotos.length;
-    }));
-    resultados.forEach(r => { if (r.status === 'fulfilled') fotosBorradas += r.value; });
-  }
-  if (fotosBorradas) local(`se liberaron ${fotosBorradas} fotos de la detención anterior`);
 }
 
 /* Vista previa de la estructura leída del archivo, para revisar antes de
@@ -1937,12 +1919,9 @@ async function handleFile(file){
     $('confirm').onclick = async () => {
       $('confirm').textContent = 'Cargando…';
       try {
-        let planIdAnterior = null, clavesAnteriores = [];
+        let planIdAnterior = null;
         if (esPlanDistinto){
           planIdAnterior = PLAN_ID;
-          // incluye las eliminadas: sus fotos también ocupan espacio y deben
-          // borrarse (allSubs() las filtra, por eso aquí se usa la otra versión)
-          clavesAnteriores = PLAN ? allSubsConEliminadas().map(s => s.k) : [];
 
           // limpiar la memoria del navegador: si no, un dueño o una marca del
           // plan anterior podría seguir viéndose hasta recargar la página.
@@ -1968,7 +1947,7 @@ async function handleFile(file){
             await sincronizar({ completa: true });
             // liberar el espacio de la detención anterior en segundo plano,
             // sin retrasar que el equipo ya pueda trabajar en la nueva
-            limpiarPlanAnterior(planIdAnterior, clavesAnteriores);
+            limpiarPlanAnterior(planIdAnterior);
           }
         }
         $('import').classList.remove('on');
@@ -2106,10 +2085,12 @@ async function subirFoto(key, file){
   const quien = ME.replace(/[^a-zA-Z0-9]+/g, '') || 'anon';
   const nombre = `${Date.now()}_${quien}.${ext}`;
 
-  // 1) pedir permiso temporal de subida
+  // 1) pedir permiso temporal de subida. Se envía el planId para que quede
+  //    indexada: así, si algún día se cambia de detención, el servidor sabe
+  //    qué fotos borrar sin tener que revisar cada subtarea una por una.
   const { urlSubida } = await api('fotos', {
     method: 'POST',
-    body: JSON.stringify({ clave: key, nombre })
+    body: JSON.stringify({ clave: key, nombre, planId: PLAN_ID })
   });
 
   // 2) subir directo al almacenamiento con esa URL
@@ -2122,7 +2103,8 @@ async function subirFoto(key, file){
 }
 
 async function borrarFoto(path){
-  await api(`fotos?ruta=${encodeURIComponent(path)}`, { method: 'DELETE' });
+  await api(`fotos?ruta=${encodeURIComponent(path)}&planId=${encodeURIComponent(PLAN_ID || '')}`,
+    { method: 'DELETE' });
 }
 
 /* Achica la foto antes de subirla: una cámara de celular pesa 3-8 MB, y en
