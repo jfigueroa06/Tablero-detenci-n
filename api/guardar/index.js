@@ -13,11 +13,17 @@
 const { guardarVarios, respuesta, manejar } = require('../compartido/cosmos');
 
 const TIPOS = {
-  // cada tipo declara cómo construir el id del documento a partir del elemento
+  // cada tipo declara cómo construir el id del documento a partir del elemento.
+  // marca / dueno / cambio: un solo valor vigente por clave — guardar de nuevo
+  // pisa el anterior, por eso el id depende solo de la clave.
   marca:  it => `marca:${it.key}`,
   dueno:  it => `dueno:${it.pk}`,
   cambio: it => `cambio:${it.key}`,
-  log:    () => `log:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
+  log:    () => `log:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+  // comentario: una tarea puede tener varios en el tiempo, así que el id
+  // depende del comentario mismo (generado en el navegador), no de la clave —
+  // si dependiera solo de la clave, cada comentario nuevo borraría al anterior.
+  comentario: it => `comentario:${it.id}`
 };
 
 /** Traduce el formato que envía el navegador al que se guarda en Cosmos.
@@ -33,6 +39,8 @@ function aDocumento(tipo, it, planId, ahora){
     return { ...base, clave: it.key, nueva: !!it.nueva, eliminada: !!it.eliminada,
              nombre: it.nombre ?? null, pk: it.pk ?? null,
              inicio: it.starts_at ?? null, fin: it.ends_at ?? null };
+  if (tipo === 'comentario')
+    return { ...base, clave: it.key, comentarioId: it.id, texto: String(it.txt || '').slice(0, 500) };
   return { ...base, texto: it.txt || '' };   // log
 }
 
