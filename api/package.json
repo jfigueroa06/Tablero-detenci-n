@@ -1,0 +1,10 @@
+{
+  "name": "tablero-detencion-api",
+  "version": "1.0.0",
+  "description": "Funciones de datos del tablero de detención de planta",
+  "main": "*/index.js",
+  "dependencies": {
+    "@azure/cosmos": "^4.2.0",
+    "@azure/storage-blob": "^12.26.0"
+  }
+}
