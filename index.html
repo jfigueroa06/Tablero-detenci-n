@@ -2289,14 +2289,14 @@ function shownAt(s, refTime){
   const m = MARKS[s.k];
   let status, pctVal;
   if (m && m.at && chileDate(m.at) <= refTime){
-    status = m.status; pctVal = m.pct ?? (status === 'lista' ? 100 : 0);
+    status = m.status; pctVal = m.pct ?? (status === 'Completada' ? 100 : 0);
   } else if (!m){
-    status = s.p >= 100 ? 'lista' : s.p > 0 ? 'curso' : 'pendiente';
-    pctVal = status === 'lista' ? 100 : status === 'curso' ? Math.round(s.p) : 0;
+    status = s.p >= 100 ? 'Completada' : s.p > 0 ? 'curso' : 'pendiente';
+    pctVal = status === 'Completada' ? 100 : status === 'curso' ? Math.round(s.p) : 0;
   } else {
     return { estado: 'desconocido', pct: null };
   }
-  if (status === 'lista') return { estado: 'lista', pct: 100 };
+  if (status === 'Completada') return { estado: 'Completada', pct: 100 };
   const f = D(s.f);
   if (f && f < refTime) return { estado: 'atrasada', pct: pctVal };
   return { estado: status === 'curso' ? 'curso' : 'pendiente', pct: pctVal };
@@ -2327,7 +2327,7 @@ async function generarInforme(){
   const all = allSubs().map(s => ({ s, r: shownAt(s, fin) }));
   const conocidos = all.filter(x => x.r.estado !== 'desconocido');
   const desconocidos = all.length - conocidos.length;
-  const listas = conocidos.filter(x => x.r.estado === 'lista').length;
+  const listas = conocidos.filter(x => x.r.estado === 'Completada').length;
   const atrasadas = conocidos.filter(x => x.r.estado === 'atrasada').length;
   const avance = Math.round(promedioPonderado(
     conocidos.map(x => ({ peso: duracion(x.s), valor: x.r.pct }))));
@@ -2541,8 +2541,8 @@ function armarRespaldo(){
       subtareas_activas: all.length,
       subtareas_eliminadas: allSubsConEliminadas().length - all.length,
       avance_global_pct: pct(all),
-      listas: all.filter(s => statusOf(s) === 'lista').length,
-      atrasadas: all.filter(s => shown(s) === 'atrasada').length
+      listas: all.filter(s => statusOf(s) === 'Completada').length,
+      atrasadas: all.filter(s => shown(s) === 'Atrasada').length
     },
     areas: areasJson,
     actividad_reciente: feed.slice(0, 40).map(e => ({
