@@ -758,7 +758,7 @@ end $$;</pre>
         vertical-align:middle;margin-right:5px"></i>Programado</span>
       <span><i style="display:inline-block;width:14px;height:2px;background:var(--ok);
         vertical-align:middle;margin-right:5px"></i>Real</span>
-      <span><i style="display:inline-block;width:2px;height:11px;background:var(--hv);
+      <span><i style="display:inline-block;width:2px;height:11px;background:var(--brand);
         vertical-align:middle;margin-right:5px"></i>Hoy</span>
     </div>
 
@@ -1632,11 +1632,19 @@ function calcularVentana(){
   const DELTA_MIN_MS = 2 * 3600 * 1000;          // al menos 2 horas de margen
   const delta = Math.max(spanMs * 0.05, DELTA_MIN_MS);   // 5% de la duración total
 
-  return {
-    VS: new Date(realInicio.getTime() - delta),   // con margen: para la línea de tiempo
-    VE: new Date(realFin.getTime() + delta),
-    realInicio, realFin                            // sin margen: para «horas restantes»
-  };
+  let VS = new Date(realInicio.getTime() - delta);   // con margen: para la línea de tiempo
+  let VE = new Date(realFin.getTime() + delta);
+
+  // Si la detención se extiende más allá de las fechas que traía el plan
+  // —bastante común en la práctica—, «hoy» puede caer fuera de este rango.
+  // Sin esto, la Curva S deja de dibujar puntos justo donde más importa:
+  // el tramo donde el equipo sigue trabajando, después de la fecha en que
+  // el archivo decía que todo debía estar terminado.
+  const ahora = NOW();
+  if (ahora > VE) VE = new Date(ahora.getTime() + DELTA_MIN_MS);
+  if (ahora < VS) VS = new Date(ahora.getTime() - DELTA_MIN_MS);
+
+  return { VS, VE, realInicio, realFin };
 }
 
 function ventana(){
@@ -2113,7 +2121,7 @@ function svgCurve(days, planificado, real, todayFrac){
   if (todayFrac != null && todayFrac >= 0 && todayFrac <= 1){
     const tx = padL + todayFrac*innerW;
     hoy = `<line x1="${tx.toFixed(1)}" x2="${tx.toFixed(1)}" y1="${padT}" y2="${H-padB}"
-      stroke="var(--hv)" stroke-width="1.5" stroke-dasharray="3,3"/>`;
+      stroke="var(--brand)" stroke-width="1.5" stroke-dasharray="3,3"/>`;
   }
 
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
@@ -2747,7 +2755,11 @@ function askName(){
   // se necesita para ver las tareas.
   if (innerWidth <= 860) $('feed').classList.add('hide');
   $('rename').onclick = askName;
-  $('openimport').onclick = () => $('import').classList.add('on');
+  $('openimport').onclick = () => {
+    $('diffbox').innerHTML = '';   // sin esto, la próxima apertura mostraba el
+                                    // botón «Cargando…» que quedó de la vez anterior
+    $('import').classList.add('on');
+  };
   $('opencurve').onclick = () => { $('curve').classList.add('on'); renderCurve(); };
   $('closecurve').onclick = () => $('curve').classList.remove('on');
   $('curvearea').onchange = renderCurve;
@@ -2800,7 +2812,7 @@ function askName(){
   };
   $('informe-generar').onclick = generarInforme;
   $('informe-imprimir').onclick = () => window.print();
-  $('closeimport').onclick = () => $('import').classList.remove('on');
+  $('closeimport').onclick = () => { $('import').classList.remove('on'); $('diffbox').innerHTML = ''; };
   $('closesetup').onclick = () => $('setup').classList.remove('on');
   $('copysql').onclick = () => {
     navigator.clipboard.writeText($('sql').textContent)
