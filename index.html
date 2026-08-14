@@ -185,6 +185,15 @@ main{flex:1;min-width:0;min-height:0;padding:0 0 60px;overflow-y:auto}
 .stw.done .st-n{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--line2)}
 .st-t{font-size:10.5px;color:var(--muted);white-space:nowrap}
 .st-r{font-size:10px;color:var(--dim);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* comentario en línea: entre el control de avance/nombre y las fechas */
+.st-c{flex:1 1 110px;min-width:60px;max-width:240px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-size:11px;color:var(--muted);text-align:left;background:none;
+  border:1px dashed transparent;border-radius:3px;padding:2px 5px;cursor:pointer}
+.st-c:hover{background:var(--raise);border-color:var(--line)}
+.st-c b{color:var(--brand);font-weight:600}
+.st-c.vacio{color:var(--dim);font-style:italic;border-color:transparent}
+.st-c.vacio:hover{border-color:var(--line);font-style:normal}
 .quien{flex:0 0 auto;font-size:10px;color:var(--wip);white-space:nowrap;max-width:74px;
   overflow:hidden;text-overflow:ellipsis}
 
@@ -414,15 +423,17 @@ pre{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
   .st.d2{padding-left:26px}
   .st-n{order:1;flex:1 1 100%;white-space:normal;overflow:visible;font-size:13.5px;
     line-height:1.35}
-  .badge,.pctwrap{order:2;min-height:44px;width:96px;font-size:13px}
+  .st-c{order:2;flex:1 1 100%;max-width:none;font-size:12px;padding:4px 6px;
+    background:var(--panel2);border-color:var(--line)}
+  .badge,.pctwrap{order:3;min-height:44px;width:96px;font-size:13px}
                                       /* 44px: alcanzable con guantes puestos */
   .badge{display:flex;align-items:center;justify-content:center;padding:0}
   .pctinput{font-size:16px}
-  .quien{order:3;font-size:10.5px}
-  .st-t{order:4;margin-left:auto;font-size:11px}
-  .fotobtn{order:5;min-width:48px;min-height:44px;display:flex;align-items:center;
+  .quien{order:4;font-size:10.5px}
+  .st-t{order:5;margin-left:auto;font-size:11px}
+  .fotobtn{order:6;min-width:48px;min-height:44px;display:flex;align-items:center;
     justify-content:center;font-size:17px}
-  .accbtn{order:6;min-width:44px;min-height:44px;display:flex;align-items:center;
+  .accbtn{order:7;min-width:44px;min-height:44px;display:flex;align-items:center;
     justify-content:center;font-size:16px}
   .tag{font-size:8px;padding:1px 4px;margin-left:4px}
   .stbar{padding:0 14px 10px 14px}
@@ -1593,8 +1604,44 @@ function clock(){
   $('turno').textContent = (h >= 8 && h < 20) ? 'TURNO DÍA · A' : 'TURNO NOCHE · B';
 }
 
+/* La ventana de detención NO se toma directo del archivo: los campos de
+   fecha a nivel de proyecto en MS Project a veces quedan desactualizados
+   (ya vimos un caso real donde el título completo venía arrastrado de una
+   detención de 2014) — pueden abarcar fechas muy anteriores o posteriores
+   a cuando el trabajo realmente ocurre. Es más confiable calcularla desde
+   las fechas de las propias subtareas, que sí se actualizan al reprogramar.
+
+   Se le agrega un margen a cada lado (delta), proporcional a la duración
+   total, para que la línea de tiempo no quede pegada justo al primer y
+   último minuto de trabajo. */
+function calcularVentana(){
+  const subs = allSubs();
+  const inicios = subs.map(s => D(s.s)).filter(Boolean);
+  const fines   = subs.map(s => D(s.f)).filter(Boolean);
+
+  if (!inicios.length || !fines.length){
+    // sin subtareas con fecha válida (plan recién creado, por ejemplo):
+    // se cae de vuelta a lo que traiga el archivo, si trae algo.
+    const VS = D(PLAN.inicio), VE = D(PLAN.fin);
+    return { VS, VE, realInicio: VS, realFin: VE };
+  }
+
+  const realInicio = new Date(Math.min(...inicios));
+  const realFin     = new Date(Math.max(...fines));
+  const spanMs = Math.max(realFin - realInicio, 0);
+  const DELTA_MIN_MS = 2 * 3600 * 1000;          // al menos 2 horas de margen
+  const delta = Math.max(spanMs * 0.05, DELTA_MIN_MS);   // 5% de la duración total
+
+  return {
+    VS: new Date(realInicio.getTime() - delta),   // con margen: para la línea de tiempo
+    VE: new Date(realFin.getTime() + delta),
+    realInicio, realFin                            // sin margen: para «horas restantes»
+  };
+}
+
 function ventana(){
-  const VS = D(PLAN.inicio), VE = D(PLAN.fin), span = VE - VS;
+  const { VS, VE } = calcularVentana();
+  const span = VE - VS;
   $('vstart').textContent = fmt(VS); $('vend').textContent = fmt(VE);
   $('vnow').style.left = Math.min(100, Math.max(0, (NOW() - VS) / span * 100)) + '%';
 
@@ -1634,7 +1681,10 @@ function kpis(){
   $('k1').innerHTML = pct(all) + '<small>%</small>';
   $('k2').innerHTML = listas + '<small>/' + all.length + '</small>';
   $('k3').textContent = atr;
-  $('k4').innerHTML = Math.max(0, Math.round((D(PLAN.fin) - NOW())/36e5)) + '<small>h</small>';
+  // hasta el fin REAL de las tareas, sin el margen visual de la línea de
+  // tiempo — si no, «horas restantes» quedaría inflado por ese margen.
+  const { realFin } = calcularVentana();
+  $('k4').innerHTML = Math.max(0, Math.round((realFin - NOW())/36e5)) + '<small>h</small>';
 }
 
 function rail(){
@@ -1736,19 +1786,29 @@ function render(){
              <span class="track"><i style="width:${av}%"></i></span>
              <b class="mono">${av}%</b></div>`
         : '';
+
+      // Comentario en línea: se ve el más reciente sin tener que abrir nada.
+      // Tocarlo abre el historial completo y permite agregar uno nuevo.
+      const listaComent = COMMENTS[s.k] || [];
+      const ultimo = listaComent[listaComent.length - 1];
+      const comentHtml = ultimo
+        ? `<button type="button" class="st-c" data-com="${esc(s.k)}" data-n="${esc(s.n)}"
+             title="${listaComent.length} comentario${listaComent.length===1?'':'s'} — ver historial">
+             <b>${esc(corto(ultimo.who))}:</b> ${esc(ultimo.txt)}</button>`
+        : `<button type="button" class="st-c vacio" data-com="${esc(s.k)}" data-n="${esc(s.n)}"
+             title="Agregar un comentario">+ comentario</button>`;
+
       return `<div class="stw ${e==='lista'&&!s._eliminada?'done':''} ${s._eliminada?'fuera':''}">
         <div class="st ${s.d>1?'d2':''}">
           ${control}
           <span class="st-n" title="${s._nueva ? '' : esc(s.o) + ' · '}${esc(s.n)}">${esc(s.n)}${marcas}</span>
           ${quien}
+          ${comentHtml}
           <span class="st-r">${esc(s.resp || '')}</span>
           <span class="st-t mono" title="${esc(rango(s.s,s.f))}">${esc(rango(s.s,s.f))}</span>
           <button class="fotobtn" data-k="${esc(s.k)}" data-n="${esc(s.n)}" title="Fotos de esta tarea"
             aria-label="Ver o agregar fotos">📷${FOTOS_CACHE[s.k]?.length
               ? `<b>${FOTOS_CACHE[s.k].length}</b>` : ''}</button>
-          <button class="fotobtn" data-com="${esc(s.k)}" data-n="${esc(s.n)}" title="Comentarios de esta tarea"
-            aria-label="Ver o agregar comentarios">💬${COMMENTS[s.k]?.length
-              ? `<b>${COMMENTS[s.k].length}</b>` : ''}</button>
           <button class="accbtn" data-acc="${esc(s.k)}" title="Editar fechas o quitar del plan"
             aria-label="Opciones de la tarea">⋯</button>
         </div>${barra}</div>`;
@@ -1810,7 +1870,7 @@ function render(){
     inp.onfocus = () => inp.select();
   });
   $('list').querySelectorAll('.fotobtn[data-k]').forEach(b => b.onclick = () => abrirFotos(b.dataset.k, b.dataset.n));
-  $('list').querySelectorAll('.fotobtn[data-com]').forEach(b => b.onclick = () => abrirComentarios(b.dataset.com, b.dataset.n));
+  $('list').querySelectorAll('.st-c').forEach(b => b.onclick = () => abrirComentarios(b.dataset.com, b.dataset.n));
   $('list').querySelectorAll('[data-acc]').forEach(b => b.onclick = () => abrirTarea({ key: b.dataset.acc }));
   $('list').querySelectorAll('[data-acc-pk]').forEach(b => b.onclick = e => {
     e.stopPropagation();   // no abrir/cerrar la tarea al tocar sus opciones
@@ -2069,7 +2129,7 @@ function renderCurve(){
   const areaSel = $('curvearea').value;
   const subs = areaSel ? areaSubs(PLAN.areas.find(x => x.o === areaSel)) : allSubs();
 
-  const VS = D(PLAN.inicio), VE = D(PLAN.fin);
+  const { VS, VE } = calcularVentana();   // misma ventana que usa el encabezado
   const horaBase = detectarHoraTurno(subs);
   const days = puntosTurno(VS, VE, horaBase);
 
@@ -2563,7 +2623,13 @@ function armarRespaldo(){
   const json = {
     generado: ahora.toISOString().replace('T',' ').slice(0,19) + ' (hora de Chile)',
     proyecto: PLAN.proyecto, plan_id: PLAN_ID,
-    ventana: { inicio: PLAN.inicio, fin: PLAN.fin },
+    ventana: (() => { const { VS, VE, realInicio, realFin } = calcularVentana(); return {
+      inicio_archivo: PLAN.inicio, fin_archivo: PLAN.fin,   // lo que declaraba el archivo original
+      inicio_real: realInicio?.toISOString().replace('T',' ').slice(0,19) || null,
+      fin_real: realFin?.toISOString().replace('T',' ').slice(0,19) || null,
+      inicio_mostrado: VS?.toISOString().replace('T',' ').slice(0,19) || null,   // con margen
+      fin_mostrado: VE?.toISOString().replace('T',' ').slice(0,19) || null
+    }; })(),
     resumen: {
       areas: PLAN.areas.length,
       paquetes: PLAN.areas.reduce((n,a) => n + a.paquetes.length, 0),
